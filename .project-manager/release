@@ -1,0 +1,285 @@
+#!/usr/bin/env bash
+# Release script for Project Manager: ~/git/project-manager/docs/project-folder.md (spec 1).
+#
+# release: bumps the version (Cargo.toml, Cargo.lock, a <release> entry in the metainfo),
+#          commits and tags it, builds the Flatpak and signs it into a clone of the hwnhub
+#          channel; then pushes main and the tag, pushes the channel and makes a GitHub
+#          release that says how to install from it.
+# hwnhub:  builds an existing tag and publishes it to the channel again. For a release whose
+#          channel push failed after the tag was out.
+#
+# The Flatpak is built by hwnhub's own publish.sh from a fresh clone of hwnhub in the work
+# folder, so ~/git/hwnhub is not touched. Nothing is attached to the GitHub release: the
+# channel is where the app is installed and updated from.
+set -euo pipefail
+
+REPO="hawwwran/easy-player"
+APP_ID="com.hawwwran.EasyPlayer"
+APP_NAME="Easy Player"
+MANIFEST="$APP_ID.yaml"
+METAINFO="data/$APP_ID.metainfo.xml"
+
+HWNHUB_REPO="hawwwran/hwnhub"
+HWNHUB_URL="https://hawwwran.github.io/hwnhub"
+# The channel's signing key, by fingerprint; its public half is $HWNHUB_URL/pubkey.gpg.
+HWNHUB_KEY="022A7AF6D8ECA4A0CFA8B9077A0ABB595C41E61B"
+
+describe() {
+    cat <<'JSON'
+{
+  "spec": 1,
+  "actions": [
+    {"id": "release", "label": "Release",
+     "summary": "Bumps the version, tags it, builds the Flatpak and publishes it to the hwnhub channel with a GitHub release.",
+     "tag": "v{version}",
+     "notes": true,
+     "dry_run": true,
+     "notes_context": "Easy Player is a small desktop audio player for Linux: drop or double-click a song, and one button brings in the rest of its folder as a playlist. The notes are read by its users in GNOME Software and on GitHub."},
+    {"id": "hwnhub", "label": "hwnhub channel",
+     "summary": "Builds the Flatpak of an existing tag and publishes it to the hwnhub channel.",
+     "kind": "publish",
+     "tag": "v{version}",
+     "dry_run": true}
+  ]
+}
+JSON
+}
+
+# The version of the app the channel serves now; nothing when it is not there yet.
+channel_version() {
+    curl -fsS --max-time 15 "$HWNHUB_URL/apps.json" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    apps = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+print(next((a["version"] for a in apps if a.get("app_id") == sys.argv[1]), ""))' "$APP_ID" || true
+}
+
+check() {
+    local action="${1:-release}" ready=0 tool repo
+
+    for tool in git gh gpg ostree flatpak python3 curl; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "::fail $tool is not installed"
+            ready=1
+        fi
+    done
+    [ "$ready" = 0 ] || return 1
+    echo "::ok git, gh, gpg, ostree, flatpak, python3 and curl are installed"
+
+    if flatpak --user info org.flatpak.Builder >/dev/null 2>&1; then
+        echo "::ok org.flatpak.Builder is installed"
+    else
+        echo "::fail org.flatpak.Builder is not installed for this user"
+        echo "::hint flatpak install --user -y flathub org.flatpak.Builder"
+        ready=1
+    fi
+
+    if gpg --list-secret-keys "$HWNHUB_KEY" >/dev/null 2>&1; then
+        echo "::ok The hwnhub signing key is in the keyring"
+    else
+        echo "::fail The hwnhub signing key ($HWNHUB_KEY) is not in the GPG keyring"
+        echo "::hint Import the key's backup: gpg --import <file>"
+        ready=1
+    fi
+
+    if gh auth status >/dev/null 2>&1; then
+        echo "::ok Logged in to GitHub as $(gh api user --jq .login 2>/dev/null)"
+        for repo in "$REPO" "$HWNHUB_REPO"; do
+            if [ "$(gh api "repos/$repo" --jq .permissions.push 2>/dev/null)" = true ]; then
+                echo "::ok Can push to $repo"
+            else
+                echo "::fail No push access to $repo"
+                ready=1
+            fi
+        done
+    else
+        echo "::fail Not logged in to GitHub"
+        echo "::hint gh auth login"
+        ready=1
+    fi
+
+    local current
+    if [ "$action" = hwnhub ]; then
+        current=$(channel_version)
+    else
+        current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+    fi
+    [ -z "$current" ] || echo "::current $current"
+    return "$ready"
+}
+
+# Sets the version in Cargo.toml and Cargo.lock (cargo build --locked refuses a lock that
+# disagrees) and puts the release with its notes on top of the metainfo's <releases>, which
+# is where GNOME Software and Flatpal read "what's new" from.
+bump_version() {
+    python3 - "$PM_VERSION" "${PM_NOTES_FILE:-}" "$METAINFO" <<'PY'
+import html
+import re
+import sys
+from datetime import date
+from pathlib import Path
+
+version, notes_file, metainfo = sys.argv[1:4]
+
+
+def replace_once(path, pattern, replacement):
+    text = Path(path).read_text()
+    text, count = re.subn(pattern, replacement, text, count=1, flags=re.M)
+    if count != 1:
+        sys.exit(f"{path}: no version line found")
+    Path(path).write_text(text)
+
+
+replace_once("Cargo.toml", r'^version = "[^"]*"$', f'version = "{version}"')
+replace_once("Cargo.lock", r'^(name = "easy-player"\nversion = )"[^"]*"$', rf'\1"{version}"')
+
+
+def markup(line):
+    """One Markdown bullet as AppStream markup: `code` stays, links keep their text."""
+    line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+    line = html.escape(line.replace("**", ""), quote=False)
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", line)
+
+
+bullets = []
+if notes_file and Path(notes_file).is_file():
+    for line in Path(notes_file).read_text().splitlines():
+        if re.match(r"\s*[-*] ", line):
+            bullets.append(re.sub(r"^\s*[-*] ", "", line).strip())
+        elif line.strip() and bullets:
+            bullets[-1] += " " + line.strip()
+
+entry = f'    <release version="{version}" date="{date.today().isoformat()}"'
+if bullets:
+    items = "\n".join(f"          <li>{markup(b)}</li>" for b in bullets)
+    entry += f">\n      <description>\n        <ul>\n{items}\n        </ul>\n      </description>\n    </release>\n"
+else:
+    entry += "/>\n"
+
+text = Path(metainfo).read_text()
+# A release removed and made again: its old entry goes first.
+text = re.sub(rf' *<release version="{re.escape(version)}"[^>]*?(/>|>.*?</release>)\n', "", text, flags=re.S)
+if "<releases>\n" not in text:
+    sys.exit(f"{metainfo}: no <releases> element")
+Path(metainfo).write_text(text.replace("<releases>\n", "<releases>\n" + entry, 1))
+PY
+}
+
+# Builds the Flatpak from the clone and commits it, signed, to gh-pages of a fresh hwnhub
+# clone in the work folder. Nothing leaves the machine here.
+build_into_channel() {
+    hub="$PM_WORK_DIR/hwnhub"
+    echo "::step Fetching the hwnhub channel"
+    rm -rf "$hub"
+    git clone --quiet "https://github.com/$HWNHUB_REPO.git" "$hub"
+
+    echo "::step Building and signing the Flatpak"
+    # publish.sh leaves flatpak-builder's cache in the folder it is started from.
+    if ! (cd "$PM_WORK_DIR" && "$hub/publish.sh" \
+            --source-dir "$PM_SOURCE_DIR" --manifest "$MANIFEST" \
+            --app-id "$APP_ID" --app-name "$APP_NAME" \
+            --version "$PM_VERSION" --gpg-key "$HWNHUB_KEY"); then
+        echo "::fail Building the Flatpak failed; nothing was pushed"
+        exit 1
+    fi
+    if [ "$(git -C "$hub" log -1 --format=%s gh-pages 2>/dev/null)" != "Publish $APP_ID $PM_VERSION" ]; then
+        echo "::fail publish.sh made no commit for $APP_ID $PM_VERSION on gh-pages; nothing was pushed"
+        exit 1
+    fi
+}
+
+push_channel() {
+    echo "::step Pushing the hwnhub channel"
+    if ! git -C "$hub" push --quiet origin gh-pages; then
+        echo "::fail Pushing gh-pages of $HWNHUB_REPO failed." \
+            "If $PM_TAG is out already, the 'hwnhub channel' action publishes it again"
+        exit 1
+    fi
+
+    echo "::step Waiting for GitHub Pages to serve $PM_VERSION"
+    for _ in $(seq 36); do
+        [ "$(channel_version)" = "$PM_VERSION" ] && return 0
+        sleep 5
+    done
+    echo "::warn $HWNHUB_URL does not serve $PM_VERSION after 3 minutes; GitHub Pages may be slow:" \
+        "https://github.com/$HWNHUB_REPO/deployments"
+}
+
+run_release() {
+    echo "::step Setting the version to $PM_VERSION"
+    bump_version
+    git add Cargo.toml Cargo.lock "$METAINFO"
+    # A release removed and made again finds the version set already: no empty commit then.
+    git diff --cached --quiet || git commit --quiet -m "Release $PM_TAG"
+    git tag -a "$PM_TAG" -m "$APP_NAME $PM_VERSION"
+
+    build_into_channel
+
+    local body="$PM_WORK_DIR/release-body.md"
+    {
+        if [ -s "${PM_NOTES_FILE:-}" ]; then
+            cat "$PM_NOTES_FILE"
+            echo
+        fi
+        echo "## Install"
+        echo
+        echo '```'
+        echo "flatpak install --user $HWNHUB_URL/$APP_ID.flatpakref"
+        echo '```'
+        echo
+        echo "This adds the hwnhub channel on the first install. An installed copy gets this version"
+        echo "from \`flatpak update\` or GNOME Software."
+        if [ -n "${PM_PREVIOUS_TAG:-}" ]; then
+            printf '\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' "$REPO" "$PM_PREVIOUS_TAG" "$PM_TAG"
+        fi
+    } > "$body"
+
+    if [ "${PM_DRY_RUN:-}" = 1 ]; then
+        echo "::warn Dry run: $PM_TAG and the channel commit were made in $PM_WORK_DIR and not pushed"
+        return 0
+    fi
+
+    echo "::point-of-no-return"
+    echo "::step Pushing $PM_DEFAULT_BRANCH and $PM_TAG"
+    if ! git push --quiet origin "HEAD:$PM_DEFAULT_BRANCH"; then
+        echo "::fail Pushing $PM_DEFAULT_BRANCH failed; nothing was pushed"
+        exit 1
+    fi
+    echo "::commit $(git rev-parse HEAD)"
+    git push --quiet origin "$PM_TAG"
+
+    push_channel
+
+    echo "::step Creating the GitHub release"
+    gh release create "$PM_TAG" --repo "$REPO" --title "$APP_NAME $PM_VERSION" --notes-file "$body"
+    echo "::url $(gh release view "$PM_TAG" --repo "$REPO" --json url --jq .url)"
+}
+
+run_hwnhub() {
+    build_into_channel
+    if [ "${PM_DRY_RUN:-}" = 1 ]; then
+        echo "::warn Dry run: the channel commit was made in $PM_WORK_DIR and not pushed"
+        return 0
+    fi
+    echo "::point-of-no-return"
+    push_channel
+    echo "::url $HWNHUB_URL/"
+}
+
+run() {
+    : "${PM_VERSION:?}" "${PM_TAG:?}" "${PM_WORK_DIR:?}" "${PM_SOURCE_DIR:?}"
+    case "${1:-}" in
+        release) : "${PM_DEFAULT_BRANCH:?}"; run_release ;;
+        hwnhub) run_hwnhub ;;
+        *) echo "::fail Unknown action: ${1:-}"; exit 2 ;;
+    esac
+}
+
+case "${1:-}" in
+    describe) describe ;;
+    check) check "${2:-}" ;;
+    run) run "${2:-}" ;;
+    *) echo "usage: release describe | check ACTION | run ACTION" >&2; exit 2 ;;
+esac

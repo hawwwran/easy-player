@@ -1,0 +1,9 @@
+/target/
+/test-audio/
+/temp/
+.flatpak-builder/
+
+# Stand-in for libasound2-dev on a machine without it: a pkg-config file and
+# a link to the system's libasound.so.2. See README, Building.
+/.cargo/
+/build-support/

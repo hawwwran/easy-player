@@ -1,0 +1,29 @@
+[package]
+name = "easy-player"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+rfd = "0.15"
+rodio = { version = "0.21", default-features = false, features = ["playback", "symphonia-all"] }
+souvlaki = { version = "0.9.3", default-features = false, features = ["use_zbus"] }
+symphonia = { version = "0.5", default-features = false }
+winit = { version = "0.30", default-features = false, features = ["x11", "wayland"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+
+# Dependencies optimised even in debug builds: decoding and the UI stay smooth,
+# and the program the menu's install copies stays small.
+[profile.dev]
+debug = false
+strip = "debuginfo"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+strip = true
+lto = "thin"

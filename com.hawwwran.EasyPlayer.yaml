@@ -1,0 +1,60 @@
+# Flatpak manifest. .project-manager/release builds it from a clone of the
+# released commit and publishes the result to the hwnhub channel.
+#
+# Try it from a checkout:
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#     temp/flatpak-build com.hawwwran.EasyPlayer.yaml
+
+app-id: com.hawwwran.EasyPlayer
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: easy-player
+# hwnhub publishes on 'stable'; a build on flatpak-builder's default 'master'
+# would never show up as an update there.
+default-branch: stable
+
+finish-args:
+  - --share=ipc
+  - --device=dri
+  # X11 first, Wayland as the fallback: winit only delivers dropped files on
+  # X11, so the player runs through XWayland when there is one (src/main.rs).
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  # Songs come as paths from the file manager or a drop, not through a
+  # portal, and "Add whole folder" reads the folder around them.
+  - --filesystem=host:ro
+  # Media keys: one MPRIS name per window, and the other players on the bus
+  # are watched and paused (src/peers.rs).
+  - --own-name=org.mpris.MediaPlayer2.easy_player.*
+  - --talk-name=org.mpris.MediaPlayer2.*
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  # cargo fetches the crates pinned in Cargo.lock during the build.
+  build-args:
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/easy-player/cargo
+
+modules:
+  - name: easy-player
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --locked
+      - install -Dm755 target/release/easy-player /app/bin/easy-player
+      - install -Dm644 data/com.hawwwran.EasyPlayer.desktop /app/share/applications/com.hawwwran.EasyPlayer.desktop
+      - install -Dm644 data/com.hawwwran.EasyPlayer.svg /app/share/icons/hicolor/scalable/apps/com.hawwwran.EasyPlayer.svg
+      - install -Dm644 data/com.hawwwran.EasyPlayer.metainfo.xml /app/share/metainfo/com.hawwwran.EasyPlayer.metainfo.xml
+    sources:
+      - type: dir
+        path: .
+        skip:
+          - target
+          - temp
+          - test-audio
+          - .cargo
+          - build-support

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0743e"/>
+      <stop offset="1" stop-color="#c24a1c"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#ff9a3d"/>
+    </linearGradient>
+    <linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#ffe6c2"/>
+    </linearGradient>
+  </defs>
+  <path d="M8 30a12 12 0 0 1 12-12h25c4.2 0 8.1 2 10.5 5.4L60 30h48a12 12 0 0 1 12 12v56a12 12 0 0 1-12 12H20a12 12 0 0 1-12-12z" fill="url(#back)"/>
+  <rect x="19" y="36" width="90" height="40" rx="7" fill="url(#sheet)"/>
+  <rect x="29" y="43.5" width="42" height="4.5" rx="2.25" fill="#e3a368"/>
+  <rect x="77" y="43.5" width="22" height="4.5" rx="2.25" fill="#f0cfa6"/>
+  <path d="M8 62a12 12 0 0 1 12-12h88a12 12 0 0 1 12 12v36a12 12 0 0 1-12 12H20a12 12 0 0 1-12-12z" fill="#7a2c0c" opacity=".2" transform="translate(0 -2)"/>
+  <path d="M8 66a12 12 0 0 1 12-12h88a12 12 0 0 1 12 12v32a12 12 0 0 1-12 12H20a12 12 0 0 1-12-12z" fill="url(#front)"/>
+  <path d="M8 66a12 12 0 0 1 12-12h88a12 12 0 0 1 12 12v2.5a12 12 0 0 0-12-12H20a12 12 0 0 0-12 12z" fill="#fff" opacity=".45"/>
+  <path d="M55.5 69.5 80 82 55.5 94.5z" fill="#1b1d23" stroke="#1b1d23" stroke-width="7" stroke-linejoin="round"/>
+</svg>

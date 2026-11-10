@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.hawwwran.EasyPlayer</id>
+  <name>Easy Player</name>
+  <summary>Play a song, then the rest of its folder</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <developer id="com.hawwwran">
+    <name>hawwwran</name>
+  </developer>
+
+  <description>
+    <p>
+      Easy Player is a small audio player. Drop songs or folders on the
+      window, or double-click a song in the file manager, and it plays.
+    </p>
+    <p>
+      One button brings in the other songs from the playing song's folder,
+      in folder order around it, so an album carries on from the song you
+      opened.
+    </p>
+    <ul>
+      <li>Plays MP3, FLAC, Ogg Vorbis, WAV, AAC/M4A, AIFF and more</li>
+      <li>Keyboard media keys and the desktop's media controls (MPRIS)</li>
+      <li>A song opened from the file manager goes to an idle window, or a new one</li>
+      <li>One player plays at a time: starting a song pauses the others</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.hawwwran.EasyPlayer.desktop</launchable>
+
+  <url type="homepage">https://github.com/hawwwran/easy-player</url>
+  <url type="bugtracker">https://github.com/hawwwran/easy-player/issues</url>
+  <url type="vcs-browser">https://github.com/hawwwran/easy-player</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>A folder of songs as a playlist</caption>
+      <image>https://raw.githubusercontent.com/hawwwran/easy-player/main/data/screenshots/playlist.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Drop songs or folders on the empty window</caption>
+      <image>https://raw.githubusercontent.com/hawwwran/easy-player/main/data/screenshots/empty.png</image>
+    </screenshot>
+  </screenshots>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#ffd27a</color>
+    <color type="primary" scheme_preference="dark">#c24a1c</color>
+  </branding>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+  </releases>
+</component>
