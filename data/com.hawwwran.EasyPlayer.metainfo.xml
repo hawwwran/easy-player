@@ -60,5 +60,21 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.1.0" date="2026-11-10">
+      <description>
+        <ul>
+          <li>Plays MP3, FLAC, Ogg Vorbis, WAV, AAC/M4A, AIFF and other common audio formats</li>
+          <li>Drop songs or folders on the window to build a playlist; folders are added with their subfolders, in numbered order (track 2 comes before track 10)</li>
+          <li>"Add whole folder" adds the other songs from the playing song's folder around it, in folder order, so playback continues with the next file</li>
+          <li>Double-clicking a song in the file manager opens it in an idle Easy Player window, or in a new window if the open one is busy</li>
+          <li>Starting a song in one window pauses the others</li>
+          <li>Keyboard media keys and the desktop's media controls (MPRIS) work with the player that started playing last</li>
+          <li>Repeat can be off, all or one; volume and repeat mode are kept between sessions</li>
+          <li>Keyboard shortcuts: Space to play or pause, Left and Right arrows to skip 5 seconds, Enter to play the selected song, Delete to remove it, Ctrl+O to add files</li>
+          <li>Right-click a song to play it, add the rest of its folder, show it in the file manager or remove it from the playlist</li>
+          <li>Available as a Flatpak from the hwnhub channel</li>
+        </ul>
+      </description>
+    </release>
   </releases>
 </component>
